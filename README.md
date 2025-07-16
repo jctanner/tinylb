@@ -70,7 +70,7 @@ Gateway API Controller → LoadBalancer Service → TinyLB → Platform External
 ### Quick Install
 
 ```bash
-# Install TinyLB
+# Install TinyLB using the pre-built installer manifest
 kubectl apply -f https://raw.githubusercontent.com/jctanner/tinylb/main/dist/install.yaml
 
 # Verify installation
@@ -79,26 +79,65 @@ NAME                               READY   STATUS    RESTARTS   AGE
 tinylb-controller-manager-xxx      2/2     Running   0          1m
 ```
 
-### Helm Installation
+### Build and Install from Source
 
 ```bash
-# Add TinyLB Helm repository
-helm repo add tinylb https://jctanner.github.io/tinylb
-helm repo update
+# Clone the repository
+git clone https://github.com/jctanner/tinylb.git
+cd tinylb
 
-# Install TinyLB
-helm install tinylb tinylb/tinylb -n tinylb-system --create-namespace
+# Build and generate the installer manifest
+make build-installer
+
+# Install using the generated manifest
+kubectl apply -f dist/install.yaml
 
 # Verify installation
-helm status tinylb -n tinylb-system
+kubectl get pods -n tinylb-system
+```
+
+### Development Installation
+
+```bash
+# Clone the repository
+git clone https://github.com/jctanner/tinylb.git
+cd tinylb
+
+# Install CRDs
+make install
+
+# Deploy controller with default image
+make deploy
+
+# Or deploy with custom image
+make deploy IMG=your-registry/tinylb:latest
 ```
 
 ### Custom Image Installation
 
 ```bash
-# Using custom registry
+# Method 1: Using installer manifest with image patch
 kubectl apply -f https://raw.githubusercontent.com/jctanner/tinylb/main/dist/install.yaml
 kubectl patch deployment tinylb-controller-manager -n tinylb-system -p '{"spec":{"template":{"spec":{"containers":[{"name":"manager","image":"registry.tannerjc.net/odh/tinylb:latest"}]}}}}'
+
+# Method 2: Using kustomize
+git clone https://github.com/jctanner/tinylb.git
+cd tinylb
+cd config/manager && kustomize edit set image controller=registry.tannerjc.net/odh/tinylb:latest
+kustomize build config/default | kubectl apply -f -
+```
+
+### Uninstall
+
+```bash
+# If installed from source
+make undeploy
+
+# If installed using installer manifest
+kubectl delete -f https://raw.githubusercontent.com/jctanner/tinylb/main/dist/install.yaml
+
+# Remove CRDs (if installed separately)
+make uninstall
 ```
 
 ## 🔧 Configuration
