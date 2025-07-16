@@ -8,6 +8,7 @@ import sys
 import os
 import time
 import traceback
+import argparse
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 
@@ -296,6 +297,71 @@ def run_gateway_api_test(k8s_client, namespace="gateway-api-test"):
             print("   ❌ Service did not get external IP within timeout")
             return False
         
+        # Step 6: Check Gateway API integration (Gateway status should be updated by TinyLB)
+        print("\n6. Checking Gateway API integration...")
+        
+        # Check if Gateway is marked as Accepted and Programmed
+        gateway_issues = []
+        
+        for attempt in range(30):
+            gateway = k8s_client["custom"].get_namespaced_custom_object(
+                group="gateway.networking.k8s.io",
+                version="v1beta1",
+                namespace=namespace,
+                plural="gateways",
+                name=gateway_name,
+            )
+            
+            status = gateway.get("status", {})
+            conditions = status.get("conditions", [])
+            addresses = status.get("addresses", [])
+            
+            # Check conditions
+            accepted_status = None
+            programmed_status = None
+            
+            for condition in conditions:
+                if condition.get("type") == "Accepted":
+                    accepted_status = condition.get("status")
+                elif condition.get("type") == "Programmed":
+                    programmed_status = condition.get("status")
+            
+            # Check if Gateway has been properly updated
+            gateway_issues.clear()
+            
+            if accepted_status != "True":
+                gateway_issues.append(f"Gateway not Accepted (status: {accepted_status})")
+            
+            if programmed_status != "True":
+                gateway_issues.append(f"Gateway not Programmed (status: {programmed_status})")
+            
+            if not addresses:
+                gateway_issues.append("Gateway has no addresses")
+            else:
+                # Check if address matches route hostname
+                gateway_address = addresses[0].get("value")
+                if gateway_address != route_host:
+                    gateway_issues.append(f"Gateway address ({gateway_address}) doesn't match route host ({route_host})")
+            
+            if not gateway_issues:
+                print("   ✅ Gateway is properly Accepted and Programmed")
+                print(f"   ✅ Gateway address: {gateway_address}")
+                break
+            else:
+                print(f"   ⏳ Waiting for Gateway API integration... (attempt {attempt + 1}/30)")
+                if attempt < 5:  # Show details for first few attempts
+                    for issue in gateway_issues:
+                        print(f"      - {issue}")
+                time.sleep(1)
+        else:
+            print("   ❌ Gateway API integration FAILED within timeout")
+            print("   Issues found:")
+            for issue in gateway_issues:
+                print(f"      - {issue}")
+            print("\n   💡 This suggests TinyLB is not functioning as a Gateway controller")
+            print("   💡 TinyLB should watch Gateway resources and update their status")
+            return False
+        
         print("\n🎉 Gateway API integration test PASSED!")
         return True
         
@@ -307,10 +373,6 @@ def run_gateway_api_test(k8s_client, namespace="gateway-api-test"):
 
 def cleanup_test_resources(k8s_client, namespace="gateway-api-test"):
     """Clean up test resources"""
-    print("\n" + "="*60)
-    print("🧹 Cleaning up test resources...")
-    print("="*60)
-    
     try:
         print(f"   → Deleting namespace: {namespace}")
         k8s_client["core"].delete_namespace(name=namespace)
@@ -323,6 +385,24 @@ def cleanup_test_resources(k8s_client, namespace="gateway-api-test"):
 
 def main():
     """Main test function"""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description="TinyLB Gateway API integration test",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python standalone_integration_test.py           # Run test and cleanup
+  python standalone_integration_test.py --noclean # Run test but keep resources
+        """
+    )
+    parser.add_argument(
+        '--noclean', 
+        action='store_true',
+        help='Do not cleanup test resources after running (useful for debugging)'
+    )
+    
+    args = parser.parse_args()
+    
     print("🚀 Starting TinyLB Gateway API integration test...")
     
     # Setup
@@ -352,14 +432,16 @@ def main():
         traceback.print_exc()
     
     # Cleanup
-    try:
-        response = input("\nCleanup test resources? (y/N): ").lower().strip()
-        if response in ['y', 'yes']:
+    if args.noclean:
+        print(f"\n⚠️  Test resources left in namespace: {namespace}")
+        print("💡 Use 'kubectl delete namespace gateway-api-test' to cleanup manually")
+    else:
+        print("\n🧹 Cleaning up test resources...")
+        try:
             cleanup_test_resources(k8s_client, namespace)
-        else:
-            print(f"   ⚠️  Test resources left in namespace: {namespace}")
-    except KeyboardInterrupt:
-        print(f"\n   ⚠️  Test resources left in namespace: {namespace}")
+        except Exception as e:
+            print(f"⚠️  Cleanup failed: {e}")
+            print(f"💡 You may need to manually cleanup namespace: {namespace}")
     
     # Summary
     print("\n" + "="*60)
