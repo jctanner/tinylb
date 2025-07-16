@@ -3,3 +3,5 @@ bin/*
 test/integration/utils/__pycache__/*
 *.pyc
 *.pyo
+cover.out
+main

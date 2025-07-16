@@ -39,6 +39,7 @@ import (
 
 	"github.com/jctanner/tinylb/internal/controller"
 	routev1 "github.com/openshift/api/route/v1"
+	gatewayv1 "sigs.k8s.io/gateway-api/apis/v1"
 	// +kubebuilder:scaffold:imports
 )
 
@@ -50,6 +51,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(routev1.AddToScheme(scheme))
+	utilruntime.Must(gatewayv1.AddToScheme(scheme))
 
 	// +kubebuilder:scaffold:scheme
 }
@@ -207,6 +209,17 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Service")
+		os.Exit(1)
+	}
+
+	// Add Gateway controller
+	if err := (&controller.GatewayReconciler{
+		Client:                  mgr.GetClient(),
+		Scheme:                  mgr.GetScheme(),
+		SupportedGatewayClasses: []string{"istio"}, // configurable
+		RouteNamespace:          "",                // same namespace as gateway
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Gateway")
 		os.Exit(1)
 	}
 	// +kubebuilder:scaffold:builder
