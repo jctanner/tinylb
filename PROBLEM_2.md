@@ -339,6 +339,111 @@ Test scenarios:
 3. **Observability** - Proper logging and metrics
 4. **Documentation** - Clear code documentation
 
+## Root Cause Analysis: Testing and Debugging Issues
+
+During the development of the integration test for this problem, several significant debugging issues were encountered that delayed the identification of the core Gateway controller missing functionality. These issues provide important lessons for future development.
+
+### Issue 1: Gateway API Configuration Validation Error
+
+**Problem:** Initial Gateway fixture had invalid TLS configuration:
+
+```yaml
+listeners:
+  - name: https
+    port: 443
+    protocol: HTTPS # ❌ Invalid with tls.mode: Passthrough
+    tls:
+      mode: Passthrough
+```
+
+**Root Cause:** Gateway API spec requires `protocol: TLS` (not `HTTPS`) when using `tls.mode: Passthrough`.
+
+**Solution:** Changed to `protocol: TLS` + `tls.mode: Passthrough` for proper TLS passthrough configuration.
+
+**Impact:** This caused early test failures that masked the actual Gateway controller issue.
+
+### Issue 2: TinyLB Deployment Assumption Gap
+
+**Problem:** Tests assumed TinyLB was already deployed and running in the cluster.
+
+**Root Cause:** Integration test focused on testing TinyLB functionality rather than installation process.
+
+**Solution:** Added `tinylb_ready` fixture to validate TinyLB deployment status before running tests.
+
+**Impact:** Tests would hang or fail unexpectedly if TinyLB wasn't pre-deployed.
+
+### Issue 3: pytest Output Capture Debugging Problems
+
+**Problem:** pytest's default output capture made debugging difficult when tests hung or failed.
+
+**Root Cause:** pytest captures stdout/stderr by default, hiding crucial debugging information during test execution.
+
+**Solutions implemented:**
+
+- `debug_tests.py` - pytest with `-s`, `--capture=no`, `--tb=long` flags
+- `simple_test.py` - Standalone test without pytest framework
+- `quick_debug.py` - Step-by-step connectivity test with clear output
+
+**Impact:** Developers couldn't see real-time output during test execution, making debugging nearly impossible.
+
+### Issue 4: Test Hanging During Kubeconfig Loading
+
+**Problem:** Tests would hang silently during Kubernetes API client initialization.
+
+**Root Cause:** Several potential causes:
+
+- Kubeconfig file issues (permissions, format, cluster connectivity)
+- API server connectivity problems
+- Authentication/authorization issues
+- Network timeouts
+
+**Solutions implemented:**
+
+- Added incremental logging to `check_prerequisites` function
+- Step-by-step output in `setup_k8s_client` function
+- 30-second timeouts for all API operations
+- Detailed error reporting for each prerequisite check
+
+**Impact:** Tests would hang indefinitely without indication of where the problem occurred.
+
+### Issue 5: Utils Import Problems
+
+**Problem:** Helper functions in `utils/` directory weren't being imported correctly.
+
+**Root Cause:** Python import path issues and missing `__init__.py` files.
+
+**Solution:** Added proper `__init__.py` files and fixed import statements.
+
+**Impact:** Tests would fail with ImportError, preventing execution.
+
+### Key Lessons Learned
+
+1. **Start with simple, non-pytest tests** when debugging new integration test environments
+2. **Add comprehensive logging** to all API operations and prerequisite checks
+3. **Use timeouts** for all potentially blocking operations
+4. **Validate Gateway API resource configurations** against the specification
+5. **Test with real cluster environments** early in development
+6. **Create multiple test formats** (pytest, standalone, debug) for different scenarios
+
+### Testing Infrastructure Improvements
+
+To address these issues, the following testing infrastructure was created:
+
+```
+test/integration/
+├── standalone_integration_test.py  # ⭐ Main working test with argparse
+├── simple_helper_test.py          # Helper function validation
+├── debug_tests.py                 # pytest with debug flags
+├── quick_debug.py                 # Step-by-step connectivity test
+└── utils/
+    ├── __init__.py               # Fixed import issues
+    ├── k8s_helpers.py            # With comprehensive logging
+    ├── gateway_helpers.py        # Gateway API specific helpers
+    └── route_helpers.py          # Route specific helpers
+```
+
+These improvements ensure that future integration test development will be significantly easier and more reliable.
+
 ## Current Status
 
 - [ ] Gateway controller implementation
