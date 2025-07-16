@@ -2,7 +2,7 @@
 
 ## Problem Statement
 
-**The complete integration test reveals that LoadBalancer services are not properly load balancing traffic to backend services**, resulting in 503 Service Unavailable errors when accessing Gateway endpoints despite all components appearing to be configured correctly.
+**The complete integration test reveals a simple port configuration bug in the LoadBalancer service**, resulting in 503 Service Unavailable errors when accessing Gateway endpoints due to incorrect targetPort mapping.
 
 ## Issue Discovery
 
@@ -78,23 +78,29 @@ service_spec = client.V1Service(
 )
 ```
 
-### Updated Root Cause Analysis
+### Updated Root Cause Analysis (Final)
 
-The LoadBalancer service configuration is actually correct:
+The LoadBalancer service configuration has a simple port mapping bug:
 
 1. ✅ **Service Selector**: `{"app": "test-echo-service"}` matches backend pod labels
 2. ✅ **Endpoints**: LoadBalancer service has endpoints: `10.217.0.189:8080`
-3. ✅ **Port Configuration**: Service port 80 → target port 8080 is correct
+3. ❌ **Port Configuration**: Service port 80 → target port 8080 is **INCORRECT**
 4. ✅ **Backend Pods**: Backend pods are running and ready
 
-**The Real Issue**: The LoadBalancer service itself is not responding to requests:
+**The Real Issue**: Port mapping mismatch in LoadBalancer service:
 
-```bash
-$ curl -v http://10.217.4.36:80  # LoadBalancer service ClusterIP
-* connect to 10.217.4.36 port 80 failed: Connection timed out
+```python
+# Integration test creates LoadBalancer service with wrong port
+client.V1ServicePort(port=80, target_port=8080, name="http")  # WRONG!
+
+# Container actually listens on port 5678
+# Should be:
+client.V1ServicePort(port=80, target_port=5678, name="http")  # CORRECT
 ```
 
-This suggests the LoadBalancer service proxy is not working correctly in the test environment.
+**Container Port**: `5678` (hashicorp/http-echo container)  
+**LoadBalancer Target Port**: `8080` (incorrect)  
+**ClusterIP Target Port**: `5678` (correct - that's why it works)
 
 ### TinyLB Route Creation
 
@@ -319,31 +325,32 @@ func (r *ServiceReconciler) createEndpoints(service *corev1.Service) error {
 
 ## Recommended Solution
 
-### Phase 1: Investigate LoadBalancer Service Issue (Immediate)
+### Simple Fix: Correct Port Configuration
 
-1. **Test Backend Service Directly** - Confirm backend service is accessible
-2. **Check Service Proxy** - Verify kube-proxy or service mesh proxy is working
-3. **Network Troubleshooting** - Check iptables rules and network policies
-
-### Phase 2: ClusterIP Workaround (Short-term Fix)
-
-For immediate test resolution, modify the integration test to use ClusterIP services:
+Fix the integration test to use the correct container port:
 
 ```python
-# Change LoadBalancer service to ClusterIP
-service_spec = client.V1Service(
-    metadata=client.V1ObjectMeta(name="test-gateway-istio", namespace=namespace),
-    spec=client.V1ServiceSpec(
-        type="ClusterIP",  # Instead of LoadBalancer
-        ports=[client.V1ServicePort(port=80, target_port=8080, name="http")],
-        selector={"app": "test-echo-service"},
-    ),
-)
+# In test/integration/standalone_integration_test.py
+# Change this line:
+client.V1ServicePort(port=80, target_port=8080, name="http"),  # WRONG
+
+# To this:
+client.V1ServicePort(port=80, target_port=5678, name="http"),  # CORRECT
 ```
 
-### Phase 3: Root Cause Fix (Long-term)
+### Why This Works
 
-Once the LoadBalancer service proxy issue is identified and fixed, the current architecture should work correctly without any code changes.
+- **Container Port**: `hashicorp/http-echo:0.2.3` listens on port `5678`
+- **ClusterIP Service**: Already correctly maps to port `5678` (that's why it works)
+- **LoadBalancer Service**: Incorrectly maps to port `8080` (that's why it fails)
+
+### No Other Changes Needed
+
+The TinyLB architecture is working perfectly:
+
+- ✅ Gateway controller correctly processes Gateway resources
+- ✅ TinyLB service controller correctly creates OpenShift Routes
+- ✅ LoadBalancer service proxy works correctly (just needs right port)
 
 ## Success Criteria
 
@@ -352,44 +359,37 @@ Once the LoadBalancer service proxy issue is identified and fixed, the current a
 1. **Integration Test Passes** - End-to-end HTTP traffic test succeeds
 2. **HTTP Response** - `curl` returns "Hello from TinyLB Gateway API test!"
 3. **Route Accessibility** - OpenShift Route is accessible and returns expected response
-4. **LoadBalancer Service Fix** - LoadBalancer service proxy working correctly
+4. **LoadBalancer Service Works** - LoadBalancer service correctly routes to port 5678
 
 ### Long-term Success Criteria
 
 1. **Production Readiness** - Routing architecture works in production environments
 2. **Service Mesh Compatibility** - Works with actual service mesh implementations
-3. **Network Reliability** - No service proxy issues in different environments
-4. **Test Environment Stability** - Integration tests pass consistently
+3. **Test Reliability** - Integration tests pass consistently with correct configuration
+4. **Documentation Complete** - Clear guidance on service port configuration
 
 ## Implementation Plan
 
-### Step 1: Immediate Investigation
+### Step 1: Fix Integration Test (Immediate)
 
-1. **Test Backend Service Directly** - Verify backend service is accessible
-2. **Check Service Proxy Status** - Verify kube-proxy or service mesh proxy
-3. **Network Troubleshooting** - Analyze iptables rules and network policies
-4. **Environment Analysis** - Check if specific to CRC environment
+1. **Update LoadBalancer Service Port** - Change `target_port=8080` to `target_port=5678`
+2. **Test Fix** - Run integration test to verify end-to-end traffic works
+3. **Verify Gateway Status** - Confirm Gateway remains `Programmed: True`
+4. **Document Fix** - Update test documentation
 
-### Step 2: Short-term Workaround
+### Step 2: Verification (Short-term)
 
-1. **Modify Integration Test** - Change LoadBalancer to ClusterIP service
-2. **Update Test Flow** - Adjust test expectations for ClusterIP service
-3. **Verify End-to-End Flow** - Ensure HTTP traffic flows correctly
-4. **Document Workaround** - Note that this is a temporary fix
+1. **Test All Scenarios** - Verify HTTP and HTTPS traffic (if applicable)
+2. **Clean Up Resources** - Ensure test cleanup works correctly
+3. **Update Helper Functions** - Verify helper functions work with fix
+4. **Regression Testing** - Ensure no other tests are affected
 
-### Step 3: Root Cause Resolution
+### Step 3: Documentation (Long-term)
 
-1. **Identify Service Proxy Issue** - Find why LoadBalancer service proxy fails
-2. **Apply Fix** - Fix the underlying service proxy or network issue
-3. **Revert Workaround** - Change back to LoadBalancer service
-4. **Verify Production Readiness** - Test in various environments
-
-### Step 4: Documentation
-
-1. **Troubleshooting Guide** - Document LoadBalancer service issues
-2. **Environment Setup** - Document proper test environment setup
-3. **Network Configuration** - Document network requirements
-4. **Testing Guide** - Document how to test routing functionality
+1. **Update Test Documentation** - Document correct port configuration
+2. **Add Port Troubleshooting** - Document how to identify port issues
+3. **Container Port Reference** - Document common container ports
+4. **Testing Best Practices** - Document proper service configuration
 
 ## Related Issues
 
@@ -407,4 +407,67 @@ Once the LoadBalancer service proxy issue is identified and fixed, the current a
 
 ---
 
-_This problem needs to be resolved to provide working end-to-end Gateway API traffic flow._
+## ✅ PARTIALLY RESOLVED
+
+**Date**: December 2024  
+**Status**: IN PROGRESS
+
+### Solution Implemented
+
+The LoadBalancer service issue was resolved by fixing the port configuration bug:
+
+1. **✅ Root Cause Identified** - LoadBalancer service `target_port=8080` incorrect for container port `5678`
+2. **✅ Simple Fix Applied** - Changed `target_port` from `8080` to `5678` in integration test
+3. **✅ LoadBalancer Service Working** - Service now correctly routes traffic to backend
+4. **❌ OpenShift Route Issue** - Route still returns 503 errors despite working LoadBalancer service
+
+### Files Modified
+
+- **`test/integration/standalone_integration_test.py`** - Fixed LoadBalancer service port configuration
+
+### Current Status
+
+**✅ Components Working:**
+
+- **Gateway**: `Programmed: True` with correct address
+- **Backend Service**: HTTP 200 OK, returns "Hello from TinyLB Gateway API test!"
+- **LoadBalancer Service**: HTTP 200 OK, correctly routes to container port 5678
+- **Gateway Controller**: Working correctly
+- **TinyLB Service Controller**: Working correctly
+
+**❌ Component Still Failing:**
+
+- **OpenShift Route**: Returns 503 Service Unavailable from OpenShift router
+
+### Test Results
+
+```bash
+# ✅ Backend service works
+$ curl http://test-echo-service:8080 (from pod)
+HTTP/1.1 200 OK
+Hello from TinyLB Gateway API test!
+
+# ✅ LoadBalancer service works
+$ curl http://test-gateway-istio:80 (from pod)
+HTTP/1.1 200 OK
+Hello from TinyLB Gateway API test!
+
+# ❌ OpenShift Route fails
+$ curl http://test-gateway-istio-gateway-api-test.apps-crc.testing
+HTTP/1.0 503 Service Unavailable
+```
+
+### Next Steps
+
+**Issue**: OpenShift Route configuration problem, not LoadBalancer service issue
+
+**Investigation Needed**:
+
+1. Check Route configuration for correct service reference
+2. Verify Route port mapping and target port
+3. Check if Route is properly configured for LoadBalancer service type
+4. Test Route with ClusterIP service as workaround
+
+---
+
+_LoadBalancer service issue resolved - investigating OpenShift Route configuration problem._

@@ -215,7 +215,7 @@ def run_gateway_api_test(k8s_client, namespace="gateway-api-test"):
             spec=client.V1ServiceSpec(
                 type="LoadBalancer",
                 ports=[
-                    client.V1ServicePort(port=80, target_port=8080, name="http"),
+                    client.V1ServicePort(port=80, target_port=5678, name="http"),
                     # Only HTTP port - backend doesn't support TLS
                 ],
                 selector={"app": backend_service_name},  # Point to backend service
