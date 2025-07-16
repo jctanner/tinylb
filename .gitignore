@@ -1,1 +1,5 @@
 bin/*
+*/__pycache__/*
+test/integration/utils/__pycache__/*
+*.pyc
+*.pyo

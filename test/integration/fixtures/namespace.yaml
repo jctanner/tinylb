@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gateway-api-test
+  labels:
+    name: gateway-api-test
+    app: tinylb-integration-tests
+    test-type: integration
+  annotations:
+    description: "Namespace for TinyLB Gateway API integration tests"
