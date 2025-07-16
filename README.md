@@ -70,8 +70,8 @@ Gateway API Controller → LoadBalancer Service → TinyLB → Platform External
 ### Quick Install
 
 ```bash
-# Install TinyLB using the pre-built installer manifest
-kubectl apply -f https://raw.githubusercontent.com/jctanner/tinylb/main/dist/install.yaml
+# Install TinyLB using kustomize directly from the repository
+kubectl apply -k https://github.com/jctanner/tinylb/config/default
 
 # Verify installation
 kubectl get pods -n tinylb-system
@@ -116,11 +116,11 @@ make deploy IMG=your-registry/tinylb:latest
 ### Custom Image Installation
 
 ```bash
-# Method 1: Using installer manifest with image patch
-kubectl apply -f https://raw.githubusercontent.com/jctanner/tinylb/main/dist/install.yaml
+# Method 1: Using kustomize with image patch
+kubectl apply -k https://github.com/jctanner/tinylb/config/default
 kubectl patch deployment tinylb-controller-manager -n tinylb-system -p '{"spec":{"template":{"spec":{"containers":[{"name":"manager","image":"registry.tannerjc.net/odh/tinylb:latest"}]}}}}'
 
-# Method 2: Using kustomize
+# Method 2: Using local kustomize with custom image
 git clone https://github.com/jctanner/tinylb.git
 cd tinylb
 cd config/manager && kustomize edit set image controller=registry.tannerjc.net/odh/tinylb:latest
@@ -130,11 +130,11 @@ kustomize build config/default | kubectl apply -f -
 ### Uninstall
 
 ```bash
-# If installed from source
+# If installed from source using make
 make undeploy
 
-# If installed using installer manifest
-kubectl delete -f https://raw.githubusercontent.com/jctanner/tinylb/main/dist/install.yaml
+# If installed using kustomize
+kubectl delete -k https://github.com/jctanner/tinylb/config/default
 
 # Remove CRDs (if installed separately)
 make uninstall
