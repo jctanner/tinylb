@@ -705,6 +705,11 @@ make run
 - Fastest iteration cycle for development and testing
 - Controller logs appear directly in your terminal
 
+**No CRDs Required:**
+- TinyLB doesn't define custom resources, so `make install` is not needed
+- Works with existing Kubernetes `Service` resources and OpenShift `Route` resources
+- You can run `make run` immediately after cloning the repository
+
 **Prerequisites:**
 - Go 1.24+ installed
 - kubectl configured to connect to your cluster
