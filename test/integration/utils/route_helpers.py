@@ -13,7 +13,9 @@ except ImportError:
 
 def get_route_for_gateway(k8s_client, namespace, gateway_name):
     """Get the TinyLB-created Route for a Gateway"""
-    print(f"🔍 [route_helpers.get_route_for_gateway] Getting route for gateway '{gateway_name}' in namespace '{namespace}'")
+    print(
+        f"🔍 [route_helpers.get_route_for_gateway] Getting route for gateway '{gateway_name}' in namespace '{namespace}'"
+    )
     # Try relative import first (for pytest), then absolute import (for standalone)
     try:
         from .gateway_helpers import get_gateway_service_name
@@ -28,14 +30,18 @@ def get_route_for_gateway(k8s_client, namespace, gateway_name):
 
 def get_route_for_service(k8s_client, namespace, service_name):
     """Get the TinyLB-created Route for a service"""
-    print(f"🔍 [route_helpers.get_route_for_service] Getting route for service '{service_name}' in namespace '{namespace}'")
+    print(
+        f"🔍 [route_helpers.get_route_for_service] Getting route for service '{service_name}' in namespace '{namespace}'"
+    )
     route_name = f"tinylb-{service_name}"
     return get_route(k8s_client, namespace, route_name)
 
 
 def wait_for_route_for_gateway(k8s_client, namespace, gateway_name, timeout=120):
     """Wait for TinyLB to create a Route for a Gateway"""
-    print(f"⏳ [route_helpers.wait_for_route_for_gateway] Waiting for route creation for gateway '{gateway_name}' (timeout: {timeout}s)")
+    print(
+        f"⏳ [route_helpers.wait_for_route_for_gateway] Waiting for route creation for gateway '{gateway_name}' (timeout: {timeout}s)"
+    )
     start_time = time.time()
     while time.time() - start_time < timeout:
         route = get_route_for_gateway(k8s_client, namespace, gateway_name)
@@ -47,7 +53,9 @@ def wait_for_route_for_gateway(k8s_client, namespace, gateway_name, timeout=120)
 
 def wait_for_route_for_service(k8s_client, namespace, service_name, timeout=120):
     """Wait for TinyLB to create a Route for a service"""
-    print(f"⏳ [route_helpers.wait_for_route_for_service] Waiting for route creation for service '{service_name}' (timeout: {timeout}s)")
+    print(
+        f"⏳ [route_helpers.wait_for_route_for_service] Waiting for route creation for service '{service_name}' (timeout: {timeout}s)"
+    )
     start_time = time.time()
     while time.time() - start_time < timeout:
         route = get_route_for_service(k8s_client, namespace, service_name)
@@ -59,7 +67,9 @@ def wait_for_route_for_service(k8s_client, namespace, service_name, timeout=120)
 
 def verify_route_configuration(route, expected_service_name):
     """Verify that a Route has the expected TinyLB configuration"""
-    print(f"🔍 [route_helpers.verify_route_configuration] Verifying route configuration for expected service '{expected_service_name}'")
+    print(
+        f"🔍 [route_helpers.verify_route_configuration] Verifying route configuration for expected service '{expected_service_name}'"
+    )
     if not route:
         return False
 
@@ -99,7 +109,9 @@ def get_route_hostname(route):
 
 def get_route_tls_termination(route):
     """Get the TLS termination type from a Route"""
-    print(f"🔍 [route_helpers.get_route_tls_termination] Getting TLS termination from route")
+    print(
+        f"🔍 [route_helpers.get_route_tls_termination] Getting TLS termination from route"
+    )
     if not route:
         return None
 
@@ -110,7 +122,9 @@ def get_route_tls_termination(route):
 
 def get_route_target_service(route):
     """Get the target service name from a Route"""
-    print(f"🔍 [route_helpers.get_route_target_service] Getting target service from route")
+    print(
+        f"🔍 [route_helpers.get_route_target_service] Getting target service from route"
+    )
     if not route:
         return None
 
@@ -132,13 +146,17 @@ def get_route_target_port(route):
 
 def list_tinylb_routes(k8s_client, namespace):
     """List all Routes managed by TinyLB"""
-    print(f"📋 [route_helpers.list_tinylb_routes] Listing all TinyLB-managed routes in namespace '{namespace}'")
+    print(
+        f"📋 [route_helpers.list_tinylb_routes] Listing all TinyLB-managed routes in namespace '{namespace}'"
+    )
     return list_routes_with_label(k8s_client, namespace, "tinylb.io/managed=true")
 
 
 def print_route_status(k8s_client, namespace, route_name):
     """Print Route status for debugging"""
-    print(f"📊 [route_helpers.print_route_status] Printing status for route '{route_name}' in namespace '{namespace}'")
+    print(
+        f"📊 [route_helpers.print_route_status] Printing status for route '{route_name}' in namespace '{namespace}'"
+    )
     route = get_route(k8s_client, namespace, route_name)
     if not route:
         print(f"Route {route_name} not found")
@@ -173,7 +191,9 @@ def print_route_status(k8s_client, namespace, route_name):
 
 def verify_route_accessibility(route, expected_response_text=None):
     """Verify that a Route is accessible via HTTP"""
-    print(f"🌐 [route_helpers.verify_route_accessibility] Verifying HTTP accessibility for route")
+    print(
+        f"🌐 [route_helpers.verify_route_accessibility] Verifying HTTP accessibility for route"
+    )
     import requests
 
     if not route:
@@ -208,7 +228,9 @@ def verify_route_accessibility(route, expected_response_text=None):
 
 def verify_route_https_accessibility(route, expected_response_text=None):
     """Verify that a Route is accessible via HTTPS"""
-    print(f"🔐 [route_helpers.verify_route_https_accessibility] Verifying HTTPS accessibility for route")
+    print(
+        f"🔐 [route_helpers.verify_route_https_accessibility] Verifying HTTPS accessibility for route"
+    )
     import requests
 
     if not route:
@@ -243,13 +265,17 @@ def verify_route_https_accessibility(route, expected_response_text=None):
 
 def get_expected_route_hostname(service_name, namespace):
     """Get the expected hostname for a TinyLB-created Route"""
-    print(f"🔍 [route_helpers.get_expected_route_hostname] Getting expected hostname for service '{service_name}' in namespace '{namespace}'")
+    print(
+        f"🔍 [route_helpers.get_expected_route_hostname] Getting expected hostname for service '{service_name}' in namespace '{namespace}'"
+    )
     return f"{service_name}-{namespace}.apps-crc.testing"
 
 
 def verify_route_hostname_pattern(route, service_name, namespace):
     """Verify that Route hostname follows the expected pattern"""
-    print(f"🔍 [route_helpers.verify_route_hostname_pattern] Verifying hostname pattern for service '{service_name}' in namespace '{namespace}'")
+    print(
+        f"🔍 [route_helpers.verify_route_hostname_pattern] Verifying hostname pattern for service '{service_name}' in namespace '{namespace}'"
+    )
     if not route:
         return False
 
