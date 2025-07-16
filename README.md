@@ -142,6 +142,24 @@ make uninstall
 
 ## 🔧 Configuration
 
+### Namespace Configuration
+
+**Controller Deployment:**
+- TinyLB controller runs in the `tinylb-system` namespace
+- Uses ClusterRole/ClusterRoleBinding for cluster-wide permissions
+
+**Watching Scope:**
+- Watches LoadBalancer services in **ALL namespaces** cluster-wide
+- Creates Routes in the same namespace as the corresponding service
+- No namespace filtering is currently implemented
+
+**RBAC Permissions:**
+- `services` (cluster-wide): get, list, watch, create, delete, patch, update
+- `services/status` (cluster-wide): get, patch, update  
+- `routes.route.openshift.io` (cluster-wide): get, list, watch, create, delete, patch, update
+
+### Environment Variables
+
 TinyLB is configured via environment variables in the deployment:
 
 ```yaml
@@ -154,14 +172,12 @@ env:
 - name: HOSTNAME_PATTERN
   value: "{service}-{namespace}.apps-crc.testing"
 
-# Namespace filtering (empty = all namespaces)
-- name: WATCH_NAMESPACES
-  value: "default,echo-test"
-
 # Logging configuration
 - name: LOG_LEVEL
   value: "info"
 ```
+
+**Note:** `WATCH_NAMESPACES` environment variable is not currently implemented. The controller always watches all namespaces.
 
 ### Hostname Pattern Configuration
 
