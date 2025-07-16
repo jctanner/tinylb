@@ -208,6 +208,56 @@ def get_gateway_service_name(gateway_name, gateway_class="istio"):
     return f"{gateway_name}-{gateway_class}"
 
 
+def test_http_request(hostname, timeout=30):
+    """Test HTTP request to a Gateway endpoint"""
+    print(f"🌐 [gateway_helpers.test_http_request] Testing HTTP request to '{hostname}' (timeout: {timeout}s)")
+    
+    import urllib.request
+    import urllib.error
+    
+    url = f"http://{hostname}"
+    
+    try:
+        request = urllib.request.Request(url)
+        request.add_header('Host', hostname)
+        
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            response_text = response.read().decode('utf-8')
+            return response_text
+    except urllib.error.HTTPError as e:
+        print(f"   ❌ HTTP error {e.code}: {e.reason}")
+        raise
+    except Exception as e:
+        print(f"   ❌ Connection error: {e}")
+        raise
+
+
+def wait_for_deployment_ready(k8s_client, namespace, deployment_name, timeout=120):
+    """Wait for a deployment to become ready"""
+    print(f"⏳ [gateway_helpers.wait_for_deployment_ready] Waiting for deployment '{deployment_name}' in namespace '{namespace}' (timeout: {timeout}s)")
+    
+    import time
+    start_time = time.time()
+    
+    while time.time() - start_time < timeout:
+        try:
+            deployment = k8s_client["apps"].read_namespaced_deployment(
+                name=deployment_name, namespace=namespace
+            )
+            if (deployment.status.ready_replicas and 
+                deployment.status.ready_replicas == deployment.spec.replicas):
+                print(f"   ✅ Deployment '{deployment_name}' is ready")
+                return True
+                
+        except Exception as e:
+            print(f"   ⏳ Deployment not ready yet: {e}")
+            
+        time.sleep(2)
+    
+    print(f"   ❌ Deployment '{deployment_name}' did not become ready within {timeout}s")
+    return False
+
+
 def get_gateway_conditions(k8s_client, namespace, gateway_name):
     """Get all conditions for a Gateway"""
     print(
