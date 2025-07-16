@@ -685,6 +685,69 @@ make run
 make deploy IMG=registry.tannerjc.net/odh/tinylb:latest
 ```
 
+### Development Workflow
+
+**Important**: The `make deploy` and `make build-installer` targets do NOT build or push Docker images. They assume the image already exists in the registry.
+
+#### Local Development (Recommended)
+
+For local development, use `make run` which runs the controller directly on your host machine:
+
+```bash
+# Run controller locally (best for development)
+make run
+```
+
+**How it works:**
+- Runs the controller binary directly on your machine using `go run ./cmd/main.go`
+- Connects to your Kubernetes cluster via `~/.kube/config`
+- No Docker image building, pushing, or deployment required
+- Fastest iteration cycle for development and testing
+- Controller logs appear directly in your terminal
+
+**Prerequisites:**
+- Go 1.24+ installed
+- kubectl configured to connect to your cluster
+- Cluster must have OpenShift Route API (for OpenShift/CRC) or Ingress API
+
+#### Complete Development Workflow
+```bash
+# 1. Build the Docker image
+make docker-build
+
+# 2. Push to registry (required for deployment)
+make docker-push
+
+# 3. Deploy to cluster
+make deploy
+```
+
+#### Generate Installation Manifest
+```bash
+# Build and push image first
+make docker-build docker-push
+
+# Generate dist/install.yaml
+make build-installer
+
+# Apply the generated manifest
+kubectl apply -f dist/install.yaml
+```
+
+#### Custom Registry Workflow
+```bash
+# Build and push to custom registry
+make docker-build docker-push IMG=your-registry/tinylb:your-tag
+
+# Deploy with custom image
+make deploy IMG=your-registry/tinylb:your-tag
+
+# Or generate installer with custom image
+make build-installer IMG=your-registry/tinylb:your-tag
+```
+
+**Note**: If you skip the `make docker-push` step, Kubernetes will fail to pull the image and pods will be in `ImagePullBackOff` state.
+
 ## 🤝 Contributing
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
